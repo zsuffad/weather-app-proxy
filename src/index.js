@@ -8,25 +8,62 @@ export default {
       return new Response('Forbidden', { status: 403 });
     }
 
-    // Proxy different APIs based on path
-    if (url.pathname.startsWith('/api/weather')) {
-      return await proxyWeatherAPI(request, env);
+    // https://api.open-meteo.com
+    // https://api.open-meteo.com/v1/forecast
+    if (url.hostname.startsWith('https://api.open-meteo.com')) {
+      return await proxyOpenMeteoAPI(request, env);
+    }
+
+    // https://tile.openweathermap.org
+    // https://tile.openweathermap.org/map/${this.CURRENT_WEATHER_LAYER}/{z}/{x}/{y}.png?appid=${this.openweathermap_API_KEY}&opacity=${this.layerOpacity}&date=${this.timestamp}
+    if (url.hostname.startsWith('https://tile.openweathermap.org')) {
+      return await proxyOpenWeatherMapAPI(request, env);
     }
 
     return new Response('Not found', { status: 404 });
   }
 };
 
-async function proxyWeatherAPI(request, env) {
-  const apiKey = env.WEATHER_API_KEY; // Secret stored in Cloudflare
-  const response = await fetch(`https://api.weather.com/v1/current?key=${apiKey}&`);
+async function proxyOpenMeteoAPI(request, env) {
+  const apiKey = env.OPEN_METEO_API_KEY; // Secret stored in Cloudflare
+  // Append the request URL with the API key
+  const url = new URL(request.url);
+  url.searchParams.set('appid', apiKey);
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    return new Response('Error fetching data from Open Meteo API', { status: response.status });
+  }
 
   // Add CORS headers
   const newResponse = new Response(response.body, {
     status: response.status,
     headers: {
       ...response.headers,
-      'Access-Control-Allow-Origin': 'https://yourusername.github.io',
+      'Access-Control-Allow-Origin': 'https://zsuffad.github.io',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    }
+  });
+
+  return newResponse;
+}
+
+// https://tile.openweathermap.org/map/clouds_new/z/x/y.png?opacity=0.9&date=1753279256
+async function proxyOpenWeatherMapAPI(request, env) {
+  const apiKey = env.WEATHER_API_KEY; // Secret stored in Cloudflare
+  // Append the request URL with the API key
+  const url = new URL(request.url);
+  url.searchParams.set('appid', apiKey);
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    return new Response('Error fetching data from OpenWeatherMap API', { status: response.status });
+  }
+
+  // Add CORS headers
+  const newResponse = new Response(response.body, {
+    status: response.status,
+    headers: {
+      ...response.headers,
+      'Access-Control-Allow-Origin': 'https://zsuffad.github.io',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     }
   });
